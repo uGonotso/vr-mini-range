@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/MiniRange.unity
+    path: Assets/_Project/Scenes/MiniRange.unity
     guid: f999b0b83c89a7f42b09b3d31bec9229
   m_configObjects:
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: c118262205a21c245b78c8fcb5fa8533, type: 2}
