@@ -30,8 +30,12 @@ namespace VRMiniRange.Core
                 return;
             }
             Instance = this;
+        }
 
-            CurrentState = GameState.Playing; // ADD THIS LINE - temp auto-start
+        private void Start()
+        {
+            // TEMP: Auto-start for testing
+            ChangeState(GameState.Playing);
         }
 
         private void Update()
