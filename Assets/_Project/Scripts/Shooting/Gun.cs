@@ -106,9 +106,6 @@ namespace VRMiniRange.Shooting
         {
             isGrabbed = true;
             currentInteractor = args.interactorObject;
-            
-            if (laserPointer != null)
-                laserPointer.enabled = true;
 
             HapticFeedback.LightPulse(currentInteractor);
             
@@ -151,6 +148,14 @@ namespace VRMiniRange.Shooting
             Shoot(args.interactorObject);
         }
 
+
+        private IEnumerator LaserFlash()
+        {
+            laserPointer.enabled = true;
+            yield return new WaitForSeconds(0.1f);
+            laserPointer.enabled = false;
+        }
+
         private void Shoot(UnityEngine.XR.Interaction.Toolkit.Interactors.IXRInteractor interactor)
         {
             currentAmmo--;
@@ -167,6 +172,11 @@ namespace VRMiniRange.Shooting
             // Audio
             if (shootSound != null)
                 shootSound.Play();
+
+            // Laser flash
+            if (laserPointer != null)
+                StartCoroutine(LaserFlash());
+
 
             // Raycast
             if (Physics.Raycast(muzzle.position, muzzle.forward, out RaycastHit hit, range, targetLayer))

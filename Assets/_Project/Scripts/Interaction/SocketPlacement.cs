@@ -131,9 +131,9 @@ namespace VRMiniRange.Interaction
             // For this assessment, once placed stays placed
             // If you want to allow removal, uncomment below:
             
-            // isPlaced = false;
-            // SetHighlightColor(normalColor);
-            // if (successTextObject != null) successTextObject.SetActive(false);
+             isPlaced = false;
+             SetHighlightColor(normalColor);
+             if (successTextObject != null) successTextObject.SetActive(false);
         }
 
         private void SetHighlightColor(Color color)
