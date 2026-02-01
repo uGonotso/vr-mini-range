@@ -14,12 +14,12 @@ namespace VRMiniRange.Interaction
 
         [Header("Visual Feedback")]
         [SerializeField] private Renderer highlightRenderer;
-        [SerializeField] private Color normalColor = new Color(1f, 1f, 0f, 0.5f); // Yellow
-        [SerializeField] private Color hoverColor = new Color(0f, 1f, 0f, 0.5f);  // Green
-        [SerializeField] private Color successColor = new Color(0f, 1f, 1f, 0.8f); // Cyan
+        [SerializeField] private Color normalColor = new Color(1f, 1f, 0f, 0.5f);
+        [SerializeField] private Color hoverColor = new Color(0f, 1f, 0f, 0.5f);
+        [SerializeField] private Color successColor = new Color(0f, 1f, 1f, 0.8f);
 
         [Header("Success Feedback")]
-        [SerializeField] private GameObject successTextObject; // Optional world-space text
+        [SerializeField] private GameObject successTextObject;
         [SerializeField] private AudioSource successSound;
 
         [Header("Game Integration")]
@@ -28,39 +28,26 @@ namespace VRMiniRange.Interaction
         // State
         private bool isPlaced;
 
-        // Properties
         public bool IsPlaced => isPlaced;
 
-        // Events
         public event Action OnObjectPlaced;
 
         private void Awake()
         {
-            // Auto-find socket if not assigned
             if (socket == null)
-            {
                 socket = GetComponent<XRSocketInteractor>();
-            }
 
-            // Auto-find highlight renderer if not assigned
             if (highlightRenderer == null)
-            {
                 highlightRenderer = GetComponentInChildren<Renderer>();
-            }
 
-            // Hide success text initially
             if (successTextObject != null)
-            {
                 successTextObject.SetActive(false);
-            }
         }
 
         private void Start()
         {
-            // Set initial color
             SetHighlightColor(normalColor);
 
-            // Subscribe to socket events
             if (socket != null)
             {
                 socket.hoverEntered.AddListener(OnHoverEnter);
@@ -91,7 +78,6 @@ namespace VRMiniRange.Interaction
             {
                 SetHighlightColor(hoverColor);
                 HapticFeedback.LightPulse(args.interactorObject);
-                Debug.Log("[SocketPlacement] Object hovering over socket");
             }
         }
 
@@ -108,27 +94,19 @@ namespace VRMiniRange.Interaction
             isPlaced = true;
             SetHighlightColor(successColor);
 
-            // Haptic feedback
             HapticFeedback.StrongPulse(args.interactorObject);
 
-            // Show success text
             if (successTextObject != null)
-            {
                 successTextObject.SetActive(true);
-            }
 
-            // Play sound
             if (successSound != null)
-            {
                 successSound.Play();
-            }
 
             Debug.Log("[SocketPlacement] Object placed successfully!");
 
-            // Notify listeners
             OnObjectPlaced?.Invoke();
 
-            // Unlock gun in GameManager
+            // Unlock gun - GameManager will guard against duplicate calls
             if (unlockGunOnPlace && GameManager.Instance != null)
             {
                 GameManager.Instance.UnlockGun();
@@ -137,34 +115,41 @@ namespace VRMiniRange.Interaction
 
         private void OnRemoved(SelectExitEventArgs args)
         {
-            isPlaced = false;
-            SetHighlightColor(normalColor);
-            if (successTextObject != null) 
-                successTextObject.SetActive(false);
+            // Only process if we were actually placed (not during reset)
+            if (isPlaced)
+            {
+                isPlaced = false;
+                SetHighlightColor(normalColor);
+
+                if (successTextObject != null)
+                    successTextObject.SetActive(false);
+            }
         }
 
         private void SetHighlightColor(Color color)
         {
             if (highlightRenderer != null)
             {
-                // Use material property block to avoid material instance creation
                 MaterialPropertyBlock props = new MaterialPropertyBlock();
                 highlightRenderer.GetPropertyBlock(props);
                 props.SetColor("_Color", color);
-                props.SetColor("_BaseColor", color); // For URP
+                props.SetColor("_BaseColor", color);
                 highlightRenderer.SetPropertyBlock(props);
             }
         }
 
+        /// <summary>
+        /// Reset socket visuals only. GameManager handles the actual socket release.
+        /// </summary>
         public void ResetSocket()
         {
             isPlaced = false;
             SetHighlightColor(normalColor);
-            
+
             if (successTextObject != null)
-            {
                 successTextObject.SetActive(false);
-            }
+
+            Debug.Log("[SocketPlacement] Socket visuals reset");
         }
     }
 }

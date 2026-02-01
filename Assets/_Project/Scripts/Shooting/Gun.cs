@@ -2,28 +2,30 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using VRMiniRange.Core;
 using VRMiniRange.Feedback;
 
 namespace VRMiniRange.Shooting
 {
-    [RequireComponent(typeof(UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable))]
+    [RequireComponent(typeof(XRGrabInteractable))]
     public class Gun : MonoBehaviour
     {
         [Header("Shooting")]
         [SerializeField] private Transform muzzle;
         [SerializeField] private float range = 50f;
-        [SerializeField] private LayerMask targetLayer = -1; // Default to all layers
+        [SerializeField] private LayerMask targetLayer = -1;
 
         [Header("Ammo")]
         [SerializeField] private int maxAmmo = 10;
         [SerializeField] private float reloadTime = 1.5f;
-        [SerializeField] private bool autoReloadWhenEmpty = true;
+        [SerializeField] private bool autoReloadWhenEmpty = false;
 
         [Header("Visual Feedback")]
         [SerializeField] private ParticleSystem muzzleFlash;
-        [SerializeField] private LineRenderer laserPointer; // Optional aim assist
+        [SerializeField] private LineRenderer laserPointer;
         [SerializeField] private bool showDebugRay = true;
+        [SerializeField] private float laserFlashDuration = 0.1f;
 
         [Header("Audio")]
         [SerializeField] private AudioSource shootSound;
@@ -31,7 +33,7 @@ namespace VRMiniRange.Shooting
         [SerializeField] private AudioSource reloadSound;
 
         // Components
-        private UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable grabInteractable;
+        private XRGrabInteractable grabInteractable;
         private UnityEngine.XR.Interaction.Toolkit.Interactors.IXRInteractor currentInteractor;
 
         // State
@@ -47,15 +49,15 @@ namespace VRMiniRange.Shooting
 
         // Events
         public event Action OnAmmoChanged;
-        public event Action<float> OnReloadProgress; // 0-1 progress
+        public event Action<float> OnReloadProgress;
         public event Action OnShoot;
+        public event Action OnOutOfAmmo;
 
         private void Awake()
         {
-            grabInteractable = GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
+            grabInteractable = GetComponent<XRGrabInteractable>();
             currentAmmo = maxAmmo;
 
-            // Auto-find muzzle if not set
             if (muzzle == null)
             {
                 muzzle = transform.Find("Muzzle");
@@ -64,10 +66,14 @@ namespace VRMiniRange.Shooting
                     Debug.LogWarning("[Gun] No muzzle transform found. Creating one at gun tip.");
                     GameObject muzzleObj = new GameObject("Muzzle");
                     muzzleObj.transform.SetParent(transform);
-                    muzzleObj.transform.localPosition = new Vector3(0, 0, 0.5f); // Adjust based on gun model
+                    muzzleObj.transform.localPosition = new Vector3(0, 0, 0.5f);
                     muzzle = muzzleObj.transform;
                 }
             }
+
+            // Ensure laser starts disabled
+            if (laserPointer != null)
+                laserPointer.enabled = false;
         }
 
         private void OnEnable()
@@ -75,8 +81,6 @@ namespace VRMiniRange.Shooting
             grabInteractable.activated.AddListener(OnTriggerPulled);
             grabInteractable.selectEntered.AddListener(OnGrabbed);
             grabInteractable.selectExited.AddListener(OnReleased);
-
-            Debug.Log("[Gun] Gun script enabled and listeners registered");
         }
 
         private void OnDisable()
@@ -88,17 +92,9 @@ namespace VRMiniRange.Shooting
 
         private void Update()
         {
-            // Debug visualization
             if (showDebugRay && isGrabbed)
             {
                 Debug.DrawRay(muzzle.position, muzzle.forward * range, Color.red);
-            }
-
-            // Optional laser pointer
-            if (laserPointer != null && isGrabbed)
-            {
-                laserPointer.SetPosition(0, muzzle.position);
-                laserPointer.SetPosition(1, muzzle.position + muzzle.forward * range);
             }
         }
 
@@ -108,7 +104,6 @@ namespace VRMiniRange.Shooting
             currentInteractor = args.interactorObject;
 
             HapticFeedback.LightPulse(currentInteractor);
-            
             Debug.Log("[Gun] Grabbed");
         }
 
@@ -116,7 +111,7 @@ namespace VRMiniRange.Shooting
         {
             isGrabbed = false;
             currentInteractor = null;
-            
+
             if (laserPointer != null)
                 laserPointer.enabled = false;
 
@@ -125,8 +120,6 @@ namespace VRMiniRange.Shooting
 
         private void OnTriggerPulled(ActivateEventArgs args)
         {
-            Debug.Log("[Gun] TRIGGER PULLED");
-            // Only shoot during gameplay
             if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameState.Playing)
             {
                 Debug.Log("[Gun] Not in playing state, ignoring trigger");
@@ -148,63 +141,63 @@ namespace VRMiniRange.Shooting
             Shoot(args.interactorObject);
         }
 
-
-        private IEnumerator LaserFlash()
-        {
-            laserPointer.enabled = true;
-            yield return new WaitForSeconds(0.1f);
-            laserPointer.enabled = false;
-        }
-
         private void Shoot(UnityEngine.XR.Interaction.Toolkit.Interactors.IXRInteractor interactor)
         {
             currentAmmo--;
             OnAmmoChanged?.Invoke();
             OnShoot?.Invoke();
 
-            // Haptic feedback
             HapticFeedback.FirePulse(interactor);
 
-            // VFX
             if (muzzleFlash != null)
                 muzzleFlash.Play();
 
-            // Audio
-            if (shootSound != null)
-                shootSound.Play();
-
-            // Laser flash
             if (laserPointer != null)
                 StartCoroutine(LaserFlash());
 
+            if (shootSound != null)
+                shootSound.Play();
 
-            // Raycast
             if (Physics.Raycast(muzzle.position, muzzle.forward, out RaycastHit hit, range, targetLayer))
             {
                 Debug.Log($"[Gun] Hit: {hit.collider.name}");
 
-                // Check for target
                 if (hit.collider.TryGetComponent<Target>(out Target target))
                 {
                     target.TakeHit(hit.point, interactor);
-                    
-                    // Stronger haptic on confirmed hit
                     HapticFeedback.HitConfirmPulse(interactor);
                 }
             }
 
             Debug.Log($"[Gun] Fired. Ammo: {currentAmmo}/{maxAmmo}");
 
-            // Auto reload when empty
-            if (currentAmmo <= 0 && autoReloadWhenEmpty)
+            // Check if out of ammo
+            if (currentAmmo <= 0)
             {
-                StartCoroutine(ReloadCoroutine());
+                if (autoReloadWhenEmpty)
+                {
+                    StartCoroutine(ReloadCoroutine());
+                }
+                else
+                {
+                    // Notify that we're out of ammo
+                    Debug.Log("[Gun] Out of ammo!");
+                    OnOutOfAmmo?.Invoke();
+                }
             }
+        }
+
+        private IEnumerator LaserFlash()
+        {
+            laserPointer.SetPosition(0, muzzle.position);
+            laserPointer.SetPosition(1, muzzle.position + muzzle.forward * range);
+            laserPointer.enabled = true;
+            yield return new WaitForSeconds(laserFlashDuration);
+            laserPointer.enabled = false;
         }
 
         private void EmptyClick(UnityEngine.XR.Interaction.Toolkit.Interactors.IXRInteractor interactor)
         {
-            // Light haptic for empty click
             HapticFeedback.Pulse(interactor, 0.1f, 0.05f);
 
             if (emptyClickSound != null)
@@ -212,11 +205,8 @@ namespace VRMiniRange.Shooting
 
             Debug.Log("[Gun] Empty - click");
 
-            // Auto reload on empty click
-            if (autoReloadWhenEmpty)
-            {
-                StartCoroutine(ReloadCoroutine());
-            }
+            // Notify out of ammo
+            OnOutOfAmmo?.Invoke();
         }
 
         public void StartReload()
@@ -248,11 +238,10 @@ namespace VRMiniRange.Shooting
 
             currentAmmo = maxAmmo;
             isReloading = false;
-            
+
             OnAmmoChanged?.Invoke();
             OnReloadProgress?.Invoke(0f);
 
-            // Haptic to confirm reload complete
             if (currentInteractor != null)
             {
                 HapticFeedback.MediumPulse(currentInteractor);
@@ -261,7 +250,14 @@ namespace VRMiniRange.Shooting
             Debug.Log("[Gun] Reload complete");
         }
 
-        // Manual reload via button (can be called from input action)
+        public void ResetGun()
+        {
+            currentAmmo = maxAmmo;
+            isReloading = false;
+            OnAmmoChanged?.Invoke();
+            OnReloadProgress?.Invoke(0f);
+        }
+
         public void OnReloadButtonPressed()
         {
             StartReload();

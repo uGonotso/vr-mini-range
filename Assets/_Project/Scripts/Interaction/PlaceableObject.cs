@@ -12,9 +12,11 @@ namespace VRMiniRange.Interaction
         [Header("Visual Feedback")]
         [SerializeField] private Renderer objectRenderer;
         [SerializeField] private Color normalColor = Color.white;
-        [SerializeField] private Color grabbedColor = new Color(0.8f, 0.8f, 1f); // Light blue tint
+        [SerializeField] private Color grabbedColor = new Color(0.8f, 0.8f, 1f);
+        [SerializeField] private Color placedColor = new Color(0.5f, 1f, 0.5f); // Green tint when placed
 
         private XRGrabInteractable grabInteractable;
+        private Rigidbody rb;
         private bool isPlaced;
 
         public bool IsPlaced => isPlaced;
@@ -22,18 +24,21 @@ namespace VRMiniRange.Interaction
         private void Awake()
         {
             grabInteractable = GetComponent<XRGrabInteractable>();
+            rb = GetComponent<Rigidbody>();
 
             if (objectRenderer == null)
             {
                 objectRenderer = GetComponentInChildren<Renderer>();
             }
 
-            // Create material instance
             if (objectRenderer != null)
             {
                 objectRenderer.material = new Material(objectRenderer.material);
                 objectRenderer.material.color = normalColor;
             }
+
+            // Start disabled until game starts
+            SetInteractable(false);
         }
 
         private void OnEnable()
@@ -50,12 +55,16 @@ namespace VRMiniRange.Interaction
 
         private void OnGrabbed(SelectEnterEventArgs args)
         {
-            // Check if grabbed by socket
             if (args.interactorObject is XRSocketInteractor)
             {
                 // Placed in socket
                 isPlaced = true;
-                Debug.Log("[PlaceableObject] Placed in socket");
+                SetColor(placedColor);
+                
+                // Disable further interaction once placed
+                SetInteractable(false);
+                
+                Debug.Log("[PlaceableObject] Placed in socket - interaction disabled");
             }
             else
             {
@@ -69,7 +78,6 @@ namespace VRMiniRange.Interaction
 
         private void OnReleased(SelectExitEventArgs args)
         {
-            // Only reset color if released from hand (not socket)
             if (!(args.interactorObject is XRSocketInteractor))
             {
                 SetColor(normalColor);
@@ -85,19 +93,52 @@ namespace VRMiniRange.Interaction
             }
         }
 
+        public void SetInteractable(bool interactable)
+        {
+            if (grabInteractable != null)
+            {
+                grabInteractable.enabled = interactable;
+            }
+            
+            Debug.Log($"[PlaceableObject] Interactable set to: {interactable}");
+        }
+
         public void ResetObject(Vector3 position, Quaternion rotation)
         {
             isPlaced = false;
+            
+            // Re-enable interaction
+            SetInteractable(true);
+            
+            // Reset transform
             transform.position = position;
             transform.rotation = rotation;
+            
+            // Reset color
             SetColor(normalColor);
 
             // Reset rigidbody
-            var rb = GetComponent<Rigidbody>();
             if (rb != null)
             {
                 rb.velocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = false;
+            }
+            
+            Debug.Log("[PlaceableObject] Reset complete");
+        }
+
+        public void ForceRelease()
+        {
+            // Force drop if currently held
+            if (grabInteractable != null && grabInteractable.isSelected)
+            {
+                // Get the interactor and force exit
+                var interactor = grabInteractable.firstInteractorSelecting;
+                if (interactor != null)
+                {
+                    grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
+                }
             }
         }
     }

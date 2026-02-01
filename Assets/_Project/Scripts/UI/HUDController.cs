@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 using VRMiniRange.Core;
 using VRMiniRange.Shooting;
@@ -11,7 +12,8 @@ namespace VRMiniRange.UI
         [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI ammoText;
         [SerializeField] private TextMeshProUGUI timerText;
-        [SerializeField] private GameObject reloadIndicator;
+        [SerializeField] private GameObject reloadingIndicator;
+        [SerializeField] private Button reloadButton;
 
         [Header("Settings")]
         [SerializeField] private string scoreFormat = "Targets: {0}/{1}";
@@ -37,12 +39,18 @@ namespace VRMiniRange.UI
                 UpdateAmmo();
             }
 
+            // Setup reload button
+            if (reloadButton != null)
+            {
+                reloadButton.onClick.AddListener(OnReloadPressed);
+            }
+
             // Hide at start
             gameObject.SetActive(false);
 
-            // Hide reload indicator
-            if (reloadIndicator != null)
-                reloadIndicator.SetActive(false);
+            // Hide reloading indicator
+            if (reloadingIndicator != null)
+                reloadingIndicator.SetActive(false);
         }
 
         private void Update()
@@ -67,6 +75,11 @@ namespace VRMiniRange.UI
                 currentGun.OnAmmoChanged -= UpdateAmmo;
                 currentGun.OnReloadProgress -= UpdateReloadIndicator;
             }
+
+            if (reloadButton != null)
+            {
+                reloadButton.onClick.RemoveListener(OnReloadPressed);
+            }
         }
 
         private void OnGameStateChanged(GameState newState)
@@ -75,6 +88,17 @@ namespace VRMiniRange.UI
             {
                 gameObject.SetActive(true);
                 UpdateScore(0, GameManager.Instance.TotalTargets);
+                
+                // Re-find gun in case it was disabled
+                if (currentGun == null)
+                {
+                    currentGun = FindObjectOfType<Gun>();
+                    if (currentGun != null)
+                    {
+                        currentGun.OnAmmoChanged += UpdateAmmo;
+                        currentGun.OnReloadProgress += UpdateReloadIndicator;
+                    }
+                }
                 UpdateAmmo();
             }
             else if (newState == GameState.Complete || newState == GameState.Menu)
@@ -97,6 +121,13 @@ namespace VRMiniRange.UI
             {
                 ammoText.text = string.Format(ammoFormat, currentGun.CurrentAmmo, currentGun.MaxAmmo);
             }
+
+            // Update reload button interactability
+            if (reloadButton != null && currentGun != null)
+            {
+                // Only enable if not full ammo and not already reloading
+                reloadButton.interactable = currentGun.CurrentAmmo < currentGun.MaxAmmo && !currentGun.IsReloading;
+            }
         }
 
         private void UpdateTimer()
@@ -109,9 +140,25 @@ namespace VRMiniRange.UI
 
         private void UpdateReloadIndicator(float progress)
         {
-            if (reloadIndicator != null)
+            if (reloadingIndicator != null)
             {
-                reloadIndicator.SetActive(progress > 0f);
+                reloadingIndicator.SetActive(progress > 0f);
+            }
+
+            // Disable button while reloading
+            if (reloadButton != null)
+            {
+                reloadButton.interactable = progress == 0f && (currentGun != null && currentGun.CurrentAmmo < currentGun.MaxAmmo);
+            }
+        }
+
+        private void OnReloadPressed()
+        {
+            Debug.Log("[HUDController] Reload button pressed");
+            
+            if (currentGun != null && !currentGun.IsReloading)
+            {
+                currentGun.StartReload();
             }
         }
     }
