@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using VRMiniRange.Core;
 using VRMiniRange.Feedback;
 
 namespace VRMiniRange.Interaction
@@ -20,6 +21,9 @@ namespace VRMiniRange.Interaction
         [Header("Success Feedback")]
         [SerializeField] private GameObject successTextObject; // Optional world-space text
         [SerializeField] private AudioSource successSound;
+
+        [Header("Game Integration")]
+        [SerializeField] private bool unlockGunOnPlace = true;
 
         // State
         private bool isPlaced;
@@ -123,17 +127,20 @@ namespace VRMiniRange.Interaction
 
             // Notify listeners
             OnObjectPlaced?.Invoke();
+
+            // Unlock gun in GameManager
+            if (unlockGunOnPlace && GameManager.Instance != null)
+            {
+                GameManager.Instance.UnlockGun();
+            }
         }
 
         private void OnRemoved(SelectExitEventArgs args)
         {
-            // Optional: allow removal or keep it locked
-            // For this assessment, once placed stays placed
-            // If you want to allow removal, uncomment below:
-            
-             isPlaced = false;
-             SetHighlightColor(normalColor);
-             if (successTextObject != null) successTextObject.SetActive(false);
+            isPlaced = false;
+            SetHighlightColor(normalColor);
+            if (successTextObject != null) 
+                successTextObject.SetActive(false);
         }
 
         private void SetHighlightColor(Color color)
@@ -157,13 +164,6 @@ namespace VRMiniRange.Interaction
             if (successTextObject != null)
             {
                 successTextObject.SetActive(false);
-            }
-
-            // Force release any socketed object
-            if (socket != null && socket.hasSelection)
-            {
-                // This requires the interactable to be removed manually
-                // For a full reset, you'd need to handle this in GameManager
             }
         }
     }
