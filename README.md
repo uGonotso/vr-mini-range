@@ -1,2 +1,2 @@
-# !\[VR Mini Range Demo](Media/demo.gif)
+# !\[VR Mini Range Demo](Media/pickup\&shoot.gif)
 
