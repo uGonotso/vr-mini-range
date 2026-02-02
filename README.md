@@ -1,6 +1,2 @@
-# !\[VR Mini Range Demo](media/demo.gif)
-
-
-
-
+# !\[VR Mini Range Demo](Media/demo.gif)
 
